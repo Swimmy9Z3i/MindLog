@@ -70,8 +70,9 @@ export default function App() {
 
   // ── CRUD ──────────────────────────────────────────────────
   async function handleDeleteTask(id) {
-    await supabase.from('tasks').delete().eq('id', id)
-    // リアルタイムで自動反映
+    setTasks(prev => prev.filter(t => t.id !== id))
+    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    if (error) console.error('削除エラー:', error.message)
   }
 
   // 音声AI分類後 → モーダルを開く
@@ -79,24 +80,60 @@ export default function App() {
     setCreateInitial(parsed)
   }
 
-  // モーダルから保存
+  // モーダルから保存（楽観的更新：即座に画面反映）
   async function handleCreateSave(data) {
-    const row = {
+    const tempId = Date.now()
+    const newTask = {
+      id:         tempId,
       title:      data.title,
       detail:     data.detail || '',
       category:   data.category || 'OTHER',
       department: data.department || 'OC',
       urgent:     data.urgent ?? false,
       important:  data.important ?? true,
-      is_private: mode === 'private',
+      isPrivate:  mode === 'private',
       deadline:   data.deadline || new Date(Date.now() + 24 * 3600000).toISOString(),
+      createdAt:  new Date().toISOString(),
     }
-    await supabase.from('tasks').insert(row)
+    // 即座に画面に追加
+    setTasks(prev => [newTask, ...prev])
+
+    // Supabaseに保存
+    const { data: inserted, error } = await supabase
+      .from('tasks')
+      .insert({
+        title:      newTask.title,
+        detail:     newTask.detail,
+        category:   newTask.category,
+        department: newTask.department,
+        urgent:     newTask.urgent,
+        important:  newTask.important,
+        is_private: newTask.isPrivate,
+        deadline:   newTask.deadline,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('保存エラー:', error.message)
+      // 失敗したらロールバック
+      setTasks(prev => prev.filter(t => t.id !== tempId))
+      alert(`保存できませんでした: ${error.message}`)
+      return
+    }
+    // tempIdを本物のIDに置き換え
+    setTasks(prev => prev.map(t => t.id === tempId ? fromDb(inserted) : t))
   }
 
   async function handleMoveTask(id, urgent, important) {
-    await supabase.from('tasks').update({ urgent, important }).eq('id', id)
-    // リアルタイムで自動反映
+    // 楽観的更新
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, urgent, important } : t))
+    const { error } = await supabase.from('tasks').update({ urgent, important }).eq('id', id)
+    if (error) {
+      console.error('移動エラー:', error.message)
+      // ロールバック（元の値に戻す）
+      setTasks(prev => [...prev])
+    }
   }
 
   const filteredTasks = useMemo(() => tasks.filter(t => {
@@ -130,6 +167,7 @@ export default function App() {
         onGroupBy={setGroupBy}
         currentView={currentView}
         onCurrentView={setCurrentView}
+        onAddTask={() => setCreateInitial({})}
       />
 
       <FilterChips
@@ -193,20 +231,6 @@ export default function App() {
           </motion.div>
         </AnimatePresence>
       </div>
-
-      {/* ➕ 手入力ボタン */}
-      <button
-        onClick={() => setCreateInitial({})}
-        style={{
-          position: 'fixed', bottom: 28, right: 100, zIndex: 150,
-          width: 48, height: 48, borderRadius: '50%', border: 'none',
-          background: '#fff', color: '#212529', fontSize: 24,
-          cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        ＋
-      </button>
 
       {/* FABマイク */}
       <MicButton mode={mode} onClassified={handleClassified} />

@@ -6,7 +6,7 @@ const VIEW_MODES = [
   { id: 'GRID',   icon: '⊟', label: 'グリッド' },
 ]
 
-export default function Header({ mode, onToggleMode, viewMode, onViewMode, groupBy, onGroupBy, currentView, onCurrentView }) {
+export default function Header({ mode, onToggleMode, viewMode, onViewMode, groupBy, onGroupBy, currentView, onCurrentView, onAddTask }) {
   const isBusiness = mode === 'business'
 
   return (
@@ -36,6 +36,20 @@ export default function Header({ mode, onToggleMode, viewMode, onViewMode, group
           <span style={{ fontSize: 18, fontWeight: 900, color: '#212529', letterSpacing: '-0.5px' }}>MindLog</span>
           <span style={{ fontSize: 9, color: '#868e96', marginLeft: 5, fontWeight: 600 }}>LOG SERIES</span>
         </div>
+
+        {/* 新規追加ボタン */}
+        <button
+          onClick={onAddTask}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '6px 14px', borderRadius: 999,
+            background: '#212529', color: '#fff',
+            border: 'none', fontSize: 13, fontWeight: 800,
+            cursor: 'pointer', flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: 16, lineHeight: 1 }}>＋</span> 追加
+        </button>
 
         {/* 社長 / スタッフ */}
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
